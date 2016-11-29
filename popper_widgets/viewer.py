@@ -305,17 +305,3 @@ class InteractiveViewer(widgets.DOMWidget):
             self.layers[layer].makers = [markers]
         else:
             self.layers[layer].markers.append(markers)
-
-class CoordWidget(widgets.Label):
-    def __init__(self, x=0, y=0, *args, **kwargs):
-        self.x = x
-        self.y = y
-        widgets.Label.__init__(self, *args, **kwargs)
-        self.update()
-    
-    def update(self, x=None, y=None):
-        if x is not None:
-            self.x = x
-        if y is not None:
-            self.y = y
-        self.value = "x={0}, y={1}".format(self.x, self.y)
