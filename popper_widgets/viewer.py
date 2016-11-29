@@ -41,21 +41,20 @@ class DivLayer(object):
         }
         return info
 
-class ImageViewer(widgets.DOMWidget):
-    _view_name = traitlets.Unicode('ImageViewer').tag(sync=True)
+class InteractiveViewer(widgets.DOMWidget):
+    _view_name = traitlets.Unicode('InteractiveViewer').tag(sync=True)
     _view_module = traitlets.Unicode('popper-widgets').tag(sync=True)
-    _tile_packet = traitlets.Dict().tag(sync=True)
-    _markers = traitlets.Dict().tag(sync=True)
-    _layer_packet = traitlets.Dict().tag(sync=True)
-    _layers = traitlets.List().tag(sync=True)
     
     scale = traitlets.Float().tag(sync=True)
     width = traitlets.Int().tag(sync=True)
     height = traitlets.Int().tag(sync=True)
-    
-    viewer_properties = traitlets.Dict().tag(sync=True)
     coords = traitlets.List().tag(sync=True)
-    colormap = traitlets.Dict().tag(sync=True)
+    viewer_properties = traitlets.Dict().tag(sync=True)
+    
+    _markers = traitlets.Dict().tag(sync=True)
+    _layers = traitlets.List().tag(sync=True)
+    
+    _msg = traitlets.Dict().tag(sync=True)
     
     def __init__(self, coord_widget=None, scale=1.0, width=-1, height=-1, layers=2,
                  viewer_properties=None, cmap=None, *args, **kwargs):
@@ -117,7 +116,10 @@ class ImageViewer(widgets.DOMWidget):
             'info': self.layers[-1].get_info()
         }
         
-        self._layer_packet = layer_packet
+        self._msg = {
+            'type': 'layer_packet',
+            'msg': layer_packet
+        }
     
     def get_layer_info(self):
         return [layer.get_info() for layer in self.layers]
@@ -186,7 +188,10 @@ class ImageViewer(widgets.DOMWidget):
         del save_packet['data']
         
         # Send the tile packet to the browser
-        self._tile_packet = send_packet
+        self._msg = {
+            'type': 'tile_packet',
+            'msg': send_packet
+        }
         
         # Save the information needed to reload/recreate the image tile if a change
         # is made to the viewer (scale, width, height, etc.), if this is not an update

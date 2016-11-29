@@ -144,9 +144,9 @@ var drawMarker = function(marker, layer, options){
 };
 
 // Main Definition of the widget
-define('imageViewer', ["jupyter-js-widgets"], function(widgets) {
+define('interactiveViewer', ["jupyter-js-widgets"], function(widgets) {
     // Define the DatePickerView
-    var ImageViewer = widgets.DOMWidgetView.extend({
+    var InteractiveViewer = widgets.DOMWidgetView.extend({
         render: function(){
             // Run this function when the object is rendered to the display
             
@@ -203,6 +203,15 @@ define('imageViewer', ["jupyter-js-widgets"], function(widgets) {
         // An update has been received from the server
         update: function(myUpdate){
             //console.log('update', myUpdate.changed);
+            if(myUpdate.changed.hasOwnProperty('_msg')){
+                // Received a message from the server
+                var msg = myUpdate.changed._msg;
+                if(msg.type=='tile_packet'){
+                    this.updateImage(msg.msg);
+                }else if(msg.type=='layer_packet'){
+                    this.rxLayerPacket(msg.msg);
+                };
+            };
             if(myUpdate.changed.hasOwnProperty('scale')){
                 this.resetLayers(true);
             };
@@ -210,16 +219,9 @@ define('imageViewer', ["jupyter-js-widgets"], function(widgets) {
                 // Action to perform when viewer properties have been changed
                 console.log('update viewer_properties here');
             };
-            if(myUpdate.changed.hasOwnProperty('_tile_packet')){
-                // Received an image tile to add to a layer
-                this.updateImage(myUpdate.changed._tile_packet);
-            };
             if(myUpdate.changed.hasOwnProperty('_markers')){
                 // Received a set of markers to add to a layer
                 this.updateMarkers(myUpdate.changed._markers);
-            };
-            if(myUpdate.changed.hasOwnProperty('_layer_packet')){
-                this.rxLayerPacket(myUpdate.changed._layer_packet);
             };
         },
         // Action when layer information is received from the server
@@ -385,6 +387,6 @@ define('imageViewer', ["jupyter-js-widgets"], function(widgets) {
     });
 
     return {
-        ImageViewer: ImageViewer
+        InteractiveViewer: InteractiveViewer
     };
 });
