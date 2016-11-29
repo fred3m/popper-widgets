@@ -1,6 +1,7 @@
 from ._version import version_info, __version__
 
-from .example import *
+from .viewer import *
+from .utils import *
 
 def _jupyter_nbextension_paths():
     return [{

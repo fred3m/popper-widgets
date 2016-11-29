@@ -1,3 +1,16 @@
+from past.builtins import basestring
+import os
+from io import BytesIO
+import time
+import base64
+
+import numpy as np
+
+import ipywidgets as widgets
+import traitlets
+from IPython.display import display
+
+
 from .utils import float_check, get_full_path
 
 class DivLayer(object):
@@ -30,7 +43,7 @@ class DivLayer(object):
 
 class ImageViewer(widgets.DOMWidget):
     _view_name = traitlets.Unicode('ImageViewer').tag(sync=True)
-    _view_module = traitlets.Unicode('imageViewer').tag(sync=True)
+    _view_module = traitlets.Unicode('popper-widgets').tag(sync=True)
     _tile_packet = traitlets.Dict().tag(sync=True)
     _markers = traitlets.Dict().tag(sync=True)
     _layer_packet = traitlets.Dict().tag(sync=True)
