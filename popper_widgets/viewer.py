@@ -41,7 +41,10 @@ class DivLayer(object):
         }
         return info
 
+@widgets.register('popper_widgets.InteractiveViewer')
 class InteractiveViewer(widgets.DOMWidget):
+    _model_name = traitlets.Unicode('InteractiveViewerModel').tag(sync=True)
+    _model_module = traitlets.Unicode('popper-widgets').tag(sync=True)
     _view_name = traitlets.Unicode('InteractiveViewer').tag(sync=True)
     _view_module = traitlets.Unicode('popper-widgets').tag(sync=True)
     
@@ -51,7 +54,7 @@ class InteractiveViewer(widgets.DOMWidget):
     coords = traitlets.List().tag(sync=True)
     viewer_properties = traitlets.Dict().tag(sync=True)
     
-    _markers = traitlets.Dict().tag(sync=True)
+    markers = traitlets.Dict().tag(sync=True)
     _layers = traitlets.List().tag(sync=True)
     
     _msg = traitlets.Dict().tag(sync=True)
@@ -296,7 +299,7 @@ class InteractiveViewer(widgets.DOMWidget):
             markers['x'] = xlist
             markers['y'] = ylist
         
-        self._markers = markers
+        self.markers = markers
         
         if clear:
             self.layers[layer].makers = [markers]
