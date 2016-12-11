@@ -4,6 +4,7 @@ var _ = require('underscore');
 
 // Class for a layer in the viewer
 var DivLayer = function(options){
+    console.log("New Layer", options);
     this.$element = $('<div/>');
     this.$element.css({
         padding: 0,
@@ -15,6 +16,79 @@ var DivLayer = function(options){
     this.images = [];
     this.markers = [];
     this.border = parseInt(options.$parent.css('border-width'));
+    this.check_active();
+};
+// Show the layer if it is active, otherwise hide it
+DivLayer.prototype.check_active=function(){
+    if(!this.active){
+        console.log("hiding layer", this.div_id);
+        this.$element.hide();
+    }else{
+        console.log("showing layer", this.div_id);
+        this.$element.show();
+    };
+};
+// Update the active state and div name and show/hide the layer
+DivLayer.prototype.update_info = function(info){
+    console.log("updating layer", this.div_id, "info");
+    this.active = info.active;
+    this.div_name = info.div_name;
+    this.check_active();
+};
+DivLayer.prototype.update_img = function(tile_packet, options){
+    console.log("Updating image on layer", this.div_id);
+    var img = new Image();
+    img.src = 'data:image/'+tile_packet.format+';base64,'+tile_packet.data;
+    var $image = $(img);
+    $image.css('position', 'absolute');
+    $image.css('left', tile_packet.x*options.scale+'px');
+    $image.css('top', tile_packet.y*options.scale+'px');
+    // Clear out all of the images currently in the layer, if necessary
+    if(tile_packet.clear){
+        this.$element.empty();
+    };
+    // Add the new images to the specified layer
+    this.$element.append(img);
+};
+DivLayer.prototype.update_markers = function(markers, options){
+    console.log("Updating markers on layer", this.div_id);
+    if(markers.clear){
+        this.markers = [markers];
+        this.$element.empty();
+    }else{
+        this.markers.push(markers);
+    };
+    this.drawMarkers(options.scale);
+};
+// Draw all of the markers on the layer
+DivLayer.prototype.drawMarkers = function(scale){
+    console.log("Drawing markers on layer", this.div_id);
+    for(var m=0; m<this.markers.length; m++){
+        var markers = this.markers[m];
+        for(var n=0; n<markers.x.length; n++){
+            var marker;
+            var params = {
+                x: markers.x[n]*scale,
+                y: markers.y[n]*scale
+            };
+            if(Array.isArray(markers.css)){
+                params.css = markers.css[n]
+            }else{
+                params.css = markers.css
+            };
+            if(Array.isArray(markers.size)){
+                params.size = markers.size[n];
+            }else{
+                params.size = markers.size;
+            };
+            if(Array.isArray(markers.marker)){
+                marker = markers.marker[n];
+            }else{
+                marker = markers.marker;
+            };
+            drawMarker(marker, layer, params);
+        };
+    };
 };
 
 // Draw a line from (x1,y1) to (x2,y2)
@@ -202,10 +276,11 @@ var InteractiveViewer = widgets.DOMWidgetView.extend({
         this.$el.append(this.$viewer_div);
         
         // Add a layer for the images and one for markers to the main div
-        var layers = this.model.get('_layers');
         this.layers = [];
+        var layers = this.model.get('_layers');
+        //console.log('initial layers', layers);
         for(var n=0; n<layers.length; n++){
-            var new_layer = new DivLayer($.extend(layers, {
+            var new_layer = new DivLayer($.extend(layers[n], {
                 $parent: this.$viewer_div,
             }));
             this.layers.push(new_layer);
@@ -223,9 +298,12 @@ var InteractiveViewer = widgets.DOMWidgetView.extend({
             // Received a message from the server
             var msg = myUpdate.changed._msg;
             if(msg.type=='tile_packet'){
+                console.log('rx tile_packet:', msg.msg);
                 this.updateImage(msg.msg);
             }else if(msg.type=='layer_packet'){
                 this.rxLayerPacket(msg.msg);
+            }else{
+                console.log('unknown msg type:', msg);
             };
         };
         if(myUpdate.changed.hasOwnProperty('scale')){
@@ -236,18 +314,27 @@ var InteractiveViewer = widgets.DOMWidgetView.extend({
             console.log('update viewer_properties here');
         };
         if(myUpdate.changed.hasOwnProperty('markers')){
+            console.log('rx markers:', myUpdate.markers);
             // Received a set of markers to add to a layer
             this.updateMarkers(myUpdate.changed.markers);
         };
     },
     // Action when layer information is received from the server
     rxLayerPacket: function(layer_packet){
-        if(layer_packet.update=='new layer'){
-            var new_layer = new DivLayer($.extend(layer_packet.layers, {
+        console.log('layer_packet: ', layer_packet);
+        if(layer_packet.action=='add layer'){
+            var new_layer = new DivLayer($.extend(layer_packet.info, {
                 $parent: this.$viewer_div,
             }));
             this.layers.push(new_layer);
             this.$viewer_div.append(new_layer.$element);
+        }else if(layer_packet.action=='update'){
+            for(l=0; l<this.layers.length; l++){
+                var layer = this.layers[l];
+                if(layer.div_id==layer_packet.div_id){
+                    layer.update_info(layer_packet.update);
+                }
+            };
         };
     },
     // Clear all of the layers of images and (optionally) redraw the markers
@@ -259,73 +346,34 @@ var InteractiveViewer = widgets.DOMWidgetView.extend({
         };
         if(drawMarkers){
             for(var l=0; l<this.layers.length; l++){
-                this.drawMarkers(this.layers[l]);
+                this.layers[l].drawMarkers(this.model.get("scale"));
             };
         };
     },
     // Update the image in the display
     updateImage: function(tile_packet){
-        var img = new Image();
-        var scale = this.model.get("scale");
-        var $layer = this.layers[tile_packet.layer].$element;
-        
-        img.src = 'data:image/'+tile_packet.format+';base64,'+tile_packet.data;
-        this.$image = $(img);
-        this.$image.css('position', 'absolute');
-        this.$image.css('left', tile_packet.x*scale+'px');
-        this.$image.css('top', tile_packet.y*scale+'px');
-        
-        // Clear out all of the images currently in the layer, if necessary
-        if(tile_packet.clear){
-            $layer.empty();
-        };
-        // Add the new images to the specified layer
-        $layer.append(img);
+        layer = this.findLayer(tile_packet.layer);
+        layer.update_img(tile_packet,{
+            scale: this.model.get("scale")
+        });
     },
     // Update the markers positions and/or marker attributes
     updateMarkers: function(markers){
-        var layer = markers.layer;
+        layer = this.findLayer(markers.layer);
         delete markers.layer;
-        if(markers.clear){
-            this.layers[layer].markers = [markers];
-            this.layers[layer].$element.empty();
-        }else{
-            this.layers[layer].markers.push(markers);
-        };
-        
-        this.drawMarkers(this.layers[layer]);
+        layer.update_markers(markers, {
+            scale: this.model.get("scale")
+        });
     },
-    // Draw all of the markers on the specified layer
-    drawMarkers: function(layer){
-        var scale = this.model.get('scale');
-        for(var m=0; m<layer.markers.length; m++){
-            var markers = layer.markers[m];
-            for(var n=0; n<markers.x.length; n++){
-                var marker;
-                var params = {
-                    x: markers.x[n]*scale,
-                    y: markers.y[n]*scale
-                };
-                if(Array.isArray(markers.css)){
-                    params.css = markers.css[n]
-                }else{
-                    params.css = markers.css
-                };
-                if(Array.isArray(markers.size)){
-                    params.size = markers.size[n];
-                }else{
-                    params.size = markers.size;
-                };
-                if(Array.isArray(markers.marker)){
-                    marker = markers.marker[n];
-                }else{
-                    marker = markers.marker;
-                };
-                drawMarker(marker, layer, params);
+    findLayer: function(div_id){
+        for(var l=0; l<this.layers.length; l++){
+            var layer = this.layers[l];
+            if(layer.div_id==div_id){
+                return layer;
             };
-        }
+        };
+        console.log("Could not find layer:", div_id, this.layers);
     },
-    
     // Events to listen for (jQuery names of events)
     events: {
         "mousemove": "handle_mousemove",

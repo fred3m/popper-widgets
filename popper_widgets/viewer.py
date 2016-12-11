@@ -10,24 +10,23 @@ import ipywidgets as widgets
 import traitlets
 from IPython.display import display
 
-
 from .utils import float_check, get_full_path
 
-class DivLayer(object):
+class DivLayer(traitlets.HasTraits):
     """
     Object to shadow the javascript DivLayer object to keep track of images and markers
     in the client
     """
+    active = traitlets.Bool(True).tag(sync=True)
     def __init__(self, viewer, div_id, div_name=None, images=None, markers=None, active=True):
         self.viewer = viewer
         self.div_id = div_id
         self.div_name = div_name
         self.images = []
         self.markers = []
-        self.active = active
         
         if div_name is None:
-            div_name = ''
+            self.div_name = 'Layer {0}'.format(self.div_id)
         if images is not None:
             self.images = images
         if markers is not None:
@@ -35,11 +34,21 @@ class DivLayer(object):
     
     def get_info(self):
         info = {
-            'id': self.div_id,
+            'div_id': self.div_id,
             'div_name': self.div_name,
             'active': self.active
         }
         return info
+    
+    @traitlets.observe('active')
+    def update_active(self, update):
+        layer_packet = {
+            'action': 'update',
+            'div_id': self.div_id,
+            'update': self.get_info()
+        }
+        self.viewer._layers[self.div_id] = self.get_info()
+        self.viewer.send_msg('layer_packet', layer_packet)
 
 @widgets.register('popper_widgets.InteractiveViewer')
 class InteractiveViewer(widgets.DOMWidget):
@@ -61,6 +70,7 @@ class InteractiveViewer(widgets.DOMWidget):
     
     def __init__(self, coord_widget=None, scale=1.0, width=-1, height=-1, layers=2,
                  viewer_properties=None, cmap=None, *args, **kwargs):
+        self.msg_id = 0
         default_viewer_properties = {
             'css': {
                 'border-style': 'solid',
@@ -103,7 +113,6 @@ class InteractiveViewer(widgets.DOMWidget):
         self._click_handlers = widgets.CallbackDispatcher()
         # Action when receiving a message from the client
         self.on_msg(self._handle_client_msg)
-        
     
     def add_layer(self, idx=None, div_name=None):
         div_id = self._next_layer
@@ -115,14 +124,11 @@ class InteractiveViewer(widgets.DOMWidget):
             self.layers.insert(idx, new_layer)
         self._layers = self.get_layer_info()
         layer_packet = {
-            'update': 'new layer',
+            'action': 'add layer',
             'info': self.layers[-1].get_info()
         }
         
-        self._msg = {
-            'type': 'layer_packet',
-            'msg': layer_packet
-        }
+        self.send_msg('layer_packet', layer_packet)
     
     def get_layer_info(self):
         return [layer.get_info() for layer in self.layers]
@@ -191,10 +197,7 @@ class InteractiveViewer(widgets.DOMWidget):
         del save_packet['data']
         
         # Send the tile packet to the browser
-        self._msg = {
-            'type': 'tile_packet',
-            'msg': send_packet
-        }
+        self.send_msg('tile_packet', send_packet)
         
         # Save the information needed to reload/recreate the image tile if a change
         # is made to the viewer (scale, width, height, etc.), if this is not an update
@@ -305,3 +308,12 @@ class InteractiveViewer(widgets.DOMWidget):
             self.layers[layer].makers = [markers]
         else:
             self.layers[layer].markers.append(markers)
+    
+    def send_msg(self, msg_type, msg):
+        self._msg = {
+            'type': msg_type,
+            'msg': msg,
+            'msg_id': self.msg_id
+        }
+        #print('sending message', self._msg)
+        self.msg_id += 1
